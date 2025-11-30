@@ -1,0 +1,458 @@
+import { useState, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getTranslation } from '../translations';
+import LanguageSwitcher from './LanguageSwitcher';
+import Fireworks from './Fireworks';
+
+function ResultCard({ result, imagePreview, onScanAnother }) {
+  const { language } = useLanguage();
+  const t = (key) => getTranslation(language, key);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showFireworks, setShowFireworks] = useState(false);
+  
+  // Trigger fireworks when result is shown
+  useEffect(() => {
+    if (result) {
+      // Small delay to ensure smooth animation start
+      const timer = setTimeout(() => {
+        setShowFireworks(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [result]);
+  
+  // Cleanup: stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+  
+  if (!result) return null;
+
+  // Always use Vietnamese for speech synthesis (to hear Vietnamese pronunciation)
+  const getSpeechLanguage = () => 'vi-VN';
+
+  // Always speak the Vietnamese name (user wants to learn Vietnamese pronunciation)
+  const getFoodNameToSpeak = () => {
+    return result.name?.vietnamese || 'Món ăn';
+  };
+
+  // Get pronunciation display - handle both old string format and new object format
+  const getPronunciationDisplay = () => {
+    const pronunciation = result.name?.pronunciation;
+    if (!pronunciation) return null;
+    
+    // Handle new object format
+    if (typeof pronunciation === 'object') {
+      return pronunciation;
+    }
+    
+    // Handle old string format (backwards compatibility)
+    return {
+      simplified: pronunciation,
+      ipa: null,
+      toneGuide: null
+    };
+  };
+
+  const speakFoodName = () => {
+    // Check if SpeechSynthesis is supported
+    if (!('speechSynthesis' in window)) {
+      console.warn('Speech synthesis is not supported in this browser');
+      return;
+    }
+
+    // Stop any ongoing speech
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const foodName = getFoodNameToSpeak();
+    const utterance = new SpeechSynthesisUtterance(foodName);
+    utterance.lang = getSpeechLanguage();
+    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (error) => {
+      console.error('Speech synthesis error:', error);
+      setIsSpeaking(false);
+    };
+
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.error('Error speaking:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const getSpiceLevelColor = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'hot':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-orange-100 text-orange-800';
+      case 'mild':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSpiceLevelText = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'hot':
+        return t('hot');
+      case 'medium':
+        return t('medium');
+      case 'mild':
+        return t('mild');
+      default:
+        return t('notSpicy');
+    }
+  };
+
+  // Get category display
+  const getCategoryDisplay = (category) => {
+    switch (category?.toLowerCase()) {
+      case 'food':
+        return t('categoryFood');
+      case 'drink':
+        return t('categoryDrink');
+      case 'dessert':
+        return t('categoryDessert');
+      case 'snack':
+        return t('categorySnack');
+      default:
+        return t('categoryFood');
+    }
+  };
+
+  // Get temperature display
+  const getTemperatureDisplay = (temp) => {
+    switch (temp?.toLowerCase()) {
+      case 'hot':
+        return t('tempHot');
+      case 'cold':
+        return t('tempCold');
+      case 'iced':
+        return t('tempIced');
+      case 'room':
+        return t('tempRoom');
+      default:
+        return temp;
+    }
+  };
+
+  // Get sweetness display
+  const getSweetnessDisplay = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'none':
+        return t('sweetnessNone');
+      case 'light':
+        return t('sweetnessLight');
+      case 'medium':
+        return t('sweetnessMedium');
+      case 'sweet':
+        return t('sweetnessSweet');
+      case 'very_sweet':
+        return t('sweetnessVerySweet');
+      default:
+        return level;
+    }
+  };
+
+  // Get caffeine display
+  const getCaffeineDisplay = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'none':
+        return t('caffeineNone');
+      case 'low':
+        return t('caffeineLow');
+      case 'medium':
+        return t('caffeineMedium');
+      case 'high':
+        return t('caffeineHigh');
+      default:
+        return level;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FFF8F0] py-8 px-4 relative overflow-hidden">
+      {/* Fireworks Animation */}
+      <Fireworks trigger={showFireworks} />
+      
+      {/* Language Switcher */}
+      <div className="absolute top-4 right-4 z-10">
+        <LanguageSwitcher />
+      </div>
+      
+      <div className="max-w-2xl mx-auto animate-slide-up">
+        {/* Hero Image */}
+        {imagePreview && (
+          <div className="mb-6">
+            <img
+              src={imagePreview}
+              alt={result.name?.english || 'Food'}
+              className="w-full h-64 md:h-80 object-cover rounded-2xl shadow-lg"
+            />
+          </div>
+        )}
+
+        {/* Result Card */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+          {/* Category Badge */}
+          {result.category && (
+            <div className="mb-4">
+              <span className="inline-block bg-[#E23744]/10 text-[#E23744] px-3 py-1 rounded-full text-sm font-medium">
+                {getCategoryDisplay(result.category)}
+              </span>
+            </div>
+          )}
+
+          {/* Name Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold text-[#E23744] flex-1">
+                {result.name?.vietnamese || 'Món ăn'}
+              </h1>
+              {/* Speaker Button */}
+              <button
+                onClick={speakFoodName}
+                className={`p-2 rounded-full transition-all duration-200 ${
+                  isSpeaking
+                    ? 'bg-[#E23744] text-white animate-pulse'
+                    : 'bg-gray-100 text-gray-600 hover:bg-[#E23744] hover:text-white'
+                }`}
+                aria-label="Pronounce food name"
+                title="Click to hear pronunciation"
+              >
+                {isSpeaking ? (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.383 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.383l4-4.617a1 1 0 011.617.793zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.383 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.383l4-4.617a1 1 0 011.617.793zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <h2 className="text-xl md:text-2xl text-gray-700 mb-2">
+              {result.name?.english || 'Vietnamese Dish'}
+            </h2>
+            {/* Pronunciation Section - Vietnamese only */}
+            {getPronunciationDisplay() && (
+              <div className="mt-2 space-y-1">
+                {getPronunciationDisplay().ipa && (
+                  <p className="text-gray-600 font-mono text-sm">
+                    <span className="text-gray-400">IPA:</span> {getPronunciationDisplay().ipa}
+                  </p>
+                )}
+                {getPronunciationDisplay().simplified && (
+                  <p className="text-gray-500 italic">
+                    {t('pronunciation')}: <span className="font-medium">{getPronunciationDisplay().simplified}</span>
+                  </p>
+                )}
+                {getPronunciationDisplay().toneGuide && (
+                  <p className="text-xs text-gray-400">
+                    🎵 {getPronunciationDisplay().toneGuide}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200 my-6"></div>
+
+          {/* Description */}
+          {result.description && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-2 text-gray-800">{t('description')}</h3>
+              <p className="text-gray-600 leading-relaxed">{result.description}</p>
+            </div>
+          )}
+
+          {/* Ingredients */}
+          {result.ingredients && result.ingredients.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 text-gray-800">{t('ingredients')}</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {result.ingredients.map((ingredient, index) => (
+                  <div
+                    key={index}
+                    className="bg-[#FFF8F0] px-3 py-2 rounded-lg text-sm text-gray-700"
+                  >
+                    {ingredient}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Stats Grid - Dynamic based on category */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {/* Calories - All categories */}
+            {result.calories && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('calories')}</div>
+                <div className="text-2xl font-bold text-[#E23744]">
+                  {result.calories.estimate || result.calories.range || 'N/A'}
+                </div>
+                {result.calories.range && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {result.calories.range}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Spice Level - Food & Snack only */}
+            {result.spiceLevel && (result.category === 'food' || result.category === 'snack') && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('spiceLevel')}</div>
+                <div className={`text-sm font-semibold px-3 py-1 rounded-full inline-block ${getSpiceLevelColor(result.spiceLevel)}`}>
+                  {getSpiceLevelText(result.spiceLevel)}
+                </div>
+              </div>
+            )}
+
+            {/* Temperature - Drink only */}
+            {result.temperature && result.category === 'drink' && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('temperature')}</div>
+                <div className="text-lg font-semibold text-gray-700">
+                  {getTemperatureDisplay(result.temperature)}
+                </div>
+              </div>
+            )}
+
+            {/* Sweetness Level - Drink & Dessert */}
+            {result.sweetnessLevel && (result.category === 'drink' || result.category === 'dessert') && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('sweetnessLevel')}</div>
+                <div className="text-lg font-semibold text-gray-700">
+                  {getSweetnessDisplay(result.sweetnessLevel)}
+                </div>
+              </div>
+            )}
+
+            {/* Caffeine - Drink only */}
+            {result.caffeineContent && result.category === 'drink' && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('caffeineContent')}</div>
+                <div className="text-lg font-semibold text-gray-700">
+                  ☕ {getCaffeineDisplay(result.caffeineContent)}
+                </div>
+              </div>
+            )}
+
+            {/* Serving Size - Drink only */}
+            {result.servingSize && result.category === 'drink' && (
+              <div className="bg-[#FFF8F0] p-4 rounded-xl">
+                <div className="text-sm text-gray-500 mb-1">{t('servingSize')}</div>
+                <div className="text-lg font-semibold text-gray-700">
+                  {result.servingSize}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Additional Info - Category specific */}
+          <div className="space-y-3 mb-6">
+            {/* Texture - Dessert & Snack */}
+            {result.texture && (result.category === 'dessert' || result.category === 'snack') && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="text-sm font-medium text-gray-500">{t('texture')}:</span>
+                <span>{result.texture}</span>
+              </div>
+            )}
+
+            {/* Best Served - Dessert */}
+            {result.bestServed && result.category === 'dessert' && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="text-sm font-medium text-gray-500">{t('bestServed')}:</span>
+                <span>{result.bestServed}</span>
+              </div>
+            )}
+
+            {/* Serving Style - Food */}
+            {result.servingStyle && result.category === 'food' && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="text-sm font-medium text-gray-500">{t('servingStyle')}:</span>
+                <span>{result.servingStyle}</span>
+              </div>
+            )}
+
+            {/* Eating Occasion - Snack */}
+            {result.eatingOccasion && result.category === 'snack' && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="text-sm font-medium text-gray-500">{t('eatingOccasion')}:</span>
+                <span>{result.eatingOccasion}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Allergens */}
+          {result.allergens && result.allergens.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-2 text-gray-800">{t('allergens')}</h3>
+              <div className="flex flex-wrap gap-2">
+                {result.allergens.map((allergen, index) => (
+                  <span
+                    key={index}
+                    className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
+                  >
+                    {allergen}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cultural Note */}
+          {result.culturalNote && (
+            <div className="mb-6 p-4 bg-[#2D5A27]/10 rounded-xl border-l-4 border-[#2D5A27]">
+              <h3 className="text-sm font-semibold text-[#2D5A27] mb-2">{t('culturalNote')}</h3>
+              <p className="text-sm text-gray-700 leading-relaxed">{result.culturalNote}</p>
+            </div>
+          )}
+
+          {/* Confidence */}
+          {result.confidence && (
+            <div className="text-xs text-gray-400 mb-6 text-center">
+              {t('confidence')}: {Math.round(result.confidence * 100)}%
+            </div>
+          )}
+
+          {/* Scan Another Button */}
+          <button
+            onClick={onScanAnother}
+            className="w-full bg-[#E23744] text-white py-4 px-8 rounded-full text-lg font-semibold shadow-lg hover:bg-[#c02e3a] transition-colors duration-200"
+          >
+            {t('scanAnother')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default ResultCard;
+
